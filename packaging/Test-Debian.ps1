@@ -9,6 +9,8 @@ $PackageDirectory = (Resolve-Path $PackageDirectory).Path
 $RelayRepository = (Resolve-Path $RelayRepository).Path
 if (-not (Get-ChildItem -LiteralPath $PackageDirectory -Filter '*.deb')) { throw 'No Debian packages found.' }
 $repository = Split-Path $PSScriptRoot -Parent
+& docker build -f (Join-Path $PSScriptRoot 'trixie-test.Dockerfile') -t tauthon-test:trixie $PSScriptRoot
+if ($LASTEXITCODE -ne 0) { throw 'Cannot build package acceptance image.' }
 $lab = Join-Path ([IO.Path]::GetTempPath()) ('tauthon-mrc-' + [guid]::NewGuid().ToString('N'))
 & (Join-Path $RelayRepository 'tools/Stage-MrcCompatibilityLab.ps1') -Bundled -OutputDirectory $lab
 $test = @'
@@ -48,7 +50,8 @@ cc $(tauthon2.8-config --cflags) /tmp/embed.c -o /tmp/embed $(tauthon2.8-config 
 python3 /relay/tests/test_python_multiplexer.py /lab --python /usr/bin/tauthon2.8
 # Ensure all three Python-2 source files at least compile under Tauthon.
 /usr/bin/tauthon2.8 -c 'import py_compile; [py_compile.compile("/lab/" + n, doraise=True) for n in ["mrc_server.py", "mrc_client.py", "mrc_compat.py"]]'
-dpkg --purge tauthon-python2-compat libtauthon2.8-dev tauthon libtauthon2.8
+packages=$(for archive in /packages/*.deb; do dpkg-deb -f "$archive" Package; done)
+dpkg --purge $packages
 [ ! -e /usr/bin/python2 ]
 [ ! -e /usr/bin/python2.7 ]
 [ "$before" = "$(sha256sum /usr/bin/python3)" ]
@@ -56,7 +59,7 @@ printf '%s\n' 'PASS package installation/removal, optional aliases, native embed
 
 '@
 try {
-    & docker run --rm --network=none --mount "type=bind,src=$PackageDirectory,dst=/packages,readonly" --mount "type=bind,src=$repository,dst=/source,readonly" --mount "type=bind,src=$RelayRepository,dst=/relay,readonly" --mount "type=bind,src=$lab,dst=/lab" tauthon-build:trixie sh -ec $test
+    & docker run --rm --network=none --mount "type=bind,src=$PackageDirectory,dst=/packages,readonly" --mount "type=bind,src=$repository,dst=/source,readonly" --mount "type=bind,src=$RelayRepository,dst=/relay,readonly" --mount "type=bind,src=$lab,dst=/lab" tauthon-test:trixie sh -ec $test
     if ($LASTEXITCODE -ne 0) { throw "Container acceptance failed with exit code $LASTEXITCODE" }
 }
 finally {
