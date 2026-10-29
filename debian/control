@@ -1,0 +1,43 @@
+Source: tauthon
+Section: interpreters
+Priority: optional
+Maintainer: Disconnected by Peer AT <system@bbs.disconnected-by-peer.at>
+Build-Depends: debhelper-compat (= 13), autoconf (>= 2.71), pkg-config,
+ libssl-dev, zlib1g-dev, libbz2-dev, libreadline-dev, libncurses-dev,
+ libsqlite3-dev, libffi-dev, libgdbm-dev, libgdbm-compat-dev, libexpat1-dev
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/naftaliharris/tauthon
+Vcs-Git: https://github.com/geosone/tauthon.git -b debian/trixie
+Vcs-Browser: https://github.com/geosone/tauthon/tree/debian/trixie
+
+Package: tauthon
+Architecture: any
+Depends: libtauthon2.8 (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Description: Python 2 compatible Tauthon interpreter and standard library
+ Tauthon forks CPython 2.7 and adds selected Python 3 features.
+ This package coexists with the system Python 3 interpreter.
+
+Package: libtauthon2.8
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Shared runtime library for Tauthon 2.8
+ Native Tauthon shared library. No Python 2.7 ABI alias is supplied.
+
+Package: libtauthon2.8-dev
+Section: libdevel
+Architecture: any
+Depends: tauthon (= ${binary:Version}), libtauthon2.8 (= ${binary:Version}), ${misc:Depends}
+Description: Headers and build configuration for Tauthon extensions
+ Development files for rebuilding native extensions against Tauthon.
+
+Package: tauthon-python2-compat
+Architecture: all
+Depends: tauthon (>= ${source:Version}), ${misc:Depends}
+Conflicts: python2, python2-minimal, python2.7, python2.7-minimal
+Description: Optional Python 2 command paths backed by Tauthon
+ Supplies /usr/bin/python2 and /usr/bin/python2.7 for tested legacy scripts.
+ Tauthon reports its actual version 2.8. This is not an ABI replacement for
+ libpython2.7 and does not claim compatibility with arbitrary Debian Python
+ 2 packages. The unversioned python and system python3 paths are untouched.

@@ -1,0 +1,7 @@
+tauthon (2.8.5+git20260331.8c285035-1~trixie1) trixie; urgency=medium
+
+  * Initial experimental Trixie packaging of pinned upstream sources.
+  * Retain Debian Python 2.7 packaging as an auditable adaptation reference.
+  * Separate optional Python 2 command aliases from the native runtime.
+
+ -- Disconnected by Peer AT <system@bbs.disconnected-by-peer.at>  Thu, 29 Oct 2026 16:00:00 +0100

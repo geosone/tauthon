@@ -1,0 +1,3 @@
+Tests: runtime.py
+Depends: tauthon, libtauthon2.8-dev, gcc, libc6-dev
+Restrictions: allow-stderr

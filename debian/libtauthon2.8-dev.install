@@ -1,0 +1,5 @@
+usr/include/
+usr/bin/tauthon2.8-config
+usr/lib/libtauthon2.8.so
+usr/lib/libtauthon2.8.a
+usr/lib/pkgconfig/
