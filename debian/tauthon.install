@@ -2,3 +2,6 @@ usr/bin/tauthon2.8
 usr/lib/tauthon2.8/*.py
 usr/lib/tauthon2.8/*/
 usr/share/man/man1/tauthon2.8.1
+usr/lib/tauthon2.8/LICENSE.txt
+usr/lib/tauthon2.8/pdb.doc
+usr/lib/tauthon2.8/wsgiref.egg-info

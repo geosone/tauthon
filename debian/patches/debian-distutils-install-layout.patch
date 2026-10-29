@@ -1,0 +1,329 @@
+Description: Port Debian distutils install-layout and sysconfig paths to Tauthon
+Origin: Debian python2.7 2.7.18-8+deb11u1, distutils-install-layout.diff
+Forwarded: not-needed
+
+--- a/Lib/site.py
++++ b/Lib/site.py
+@@ -277,6 +277,13 @@
+ 
+     if ENABLE_USER_SITE and os.path.isdir(user_site):
+         addsitedir(user_site, known_paths)
++    if ENABLE_USER_SITE:
++        for dist_libdir in ("local/lib", "lib"):
++            user_site = os.path.join(USER_BASE, dist_libdir,
++                                     "tauthon" + sys.version[:3],
++                                     "dist-packages")
++            if os.path.isdir(user_site):
++                addsitedir(user_site, known_paths)
+     return known_paths
+ 
+ def getsitepackages():
+--- a/Lib/sysconfig.py
++++ b/Lib/sysconfig.py
+@@ -16,6 +16,26 @@
+         'scripts': '{base}/bin',
+         'data': '{base}',
+         },
++    'posix_local': {
++        'stdlib': '{base}/lib/tauthon{py_version_short}',
++        'platstdlib': '{platbase}/lib/tauthon{py_version_short}',
++        'purelib': '{base}/local/lib/tauthon{py_version_short}/dist-packages',
++        'platlib': '{platbase}/local/lib/tauthon{py_version_short}/dist-packages',
++        'include': '{base}/local/include/tauthon{py_version_short}',
++        'platinclude': '{platbase}/local/include/tauthon{py_version_short}',
++        'scripts': '{base}/local/bin',
++        'data': '{base}/local',
++        },
++    'deb_system': {
++        'stdlib': '{base}/lib/tauthon{py_version_short}',
++        'platstdlib': '{platbase}/lib/tauthon{py_version_short}',
++        'purelib': '{base}/lib/tauthon{py_version_short}/dist-packages',
++        'platlib': '{platbase}/lib/tauthon{py_version_short}/dist-packages',
++        'include': '{base}/include/tauthon{py_version_short}',
++        'platinclude': '{platbase}/include/tauthon{py_version_short}',
++        'scripts': '{base}/bin',
++        'data': '{base}',
++        },
+     'posix_home': {
+         'stdlib': '{base}/lib/tauthon',
+         'platstdlib': '{base}/lib/tauthon',
+@@ -124,7 +144,7 @@
+ _PYTHON_BUILD = is_python_build()
+ 
+ if _PYTHON_BUILD:
+-    for scheme in ('posix_prefix', 'posix_home'):
++    for scheme in ('posix_prefix', 'posix_local', 'deb_system', 'posix_home'):
+         _INSTALL_SCHEMES[scheme]['include'] = '{srcdir}/Include'
+         _INSTALL_SCHEMES[scheme]['platinclude'] = '{projectbase}/.'
+ 
+@@ -158,7 +178,11 @@
+ 
+ def _get_default_scheme():
+     if os.name == 'posix':
+-        # the default scheme for posix is posix_prefix
++        # Debian local modules are separate from packaged modules.
++        if (os.path.normpath(sys.exec_prefix or sys.prefix) in ('/usr', '/usr/local')
++                and 'PYTHONUSERBASE' not in os.environ
++                and 'real_prefix' not in sys.__dict__):
++            return 'posix_local'
+         return 'posix_prefix'
+     return os.name
+ 
+@@ -272,7 +296,7 @@
+     """Return the path of the Makefile."""
+     if _PYTHON_BUILD:
+         return os.path.join(_PROJECT_BASE, "Makefile")
+-    return os.path.join(get_path('platstdlib'), "config", "Makefile")
++    return os.path.join(get_config_var('LIBPL'), "Makefile")
+ 
+ # Issue #22199: retain undocumented private name for compatibility
+ _get_makefile_filename = get_makefile_filename
+@@ -404,7 +428,7 @@
+         else:
+             inc_dir = _PROJECT_BASE
+     else:
+-        inc_dir = get_path('platinclude')
++        inc_dir = get_config_var('CONFINCLUDEPY')
+     return os.path.join(inc_dir, 'pyconfig.h')
+ 
+ def get_scheme_names():
+--- a/Lib/distutils/command/install.py
++++ b/Lib/distutils/command/install.py
+@@ -43,6 +43,20 @@
+     'unix_prefix': {
+         'purelib': '$base/lib/tauthon$py_version_short/site-packages',
+         'platlib': '$platbase/lib/tauthon$py_version_short/site-packages',
++        'headers': '$base/include/tauthon$py_version_short/$dist_name',
++        'scripts': '$base/bin',
++        'data'   : '$base',
++        },
++    'unix_local': {
++        'purelib': '$base/local/lib/tauthon$py_version_short/dist-packages',
++        'platlib': '$platbase/local/lib/tauthon$py_version_short/dist-packages',
++        'headers': '$base/local/include/tauthon$py_version_short/$dist_name',
++        'scripts': '$base/local/bin',
++        'data'   : '$base/local',
++        },
++    'deb_system': {
++        'purelib': '$base/lib/tauthon$py_version_short/dist-packages',
++        'platlib': '$platbase/lib/tauthon$py_version_short/dist-packages',
+         'headers': '$base/include/tauthon$py_version_short/$dist_name',
+         'scripts': '$base/bin',
+         'data'   : '$base',
+@@ -154,6 +168,9 @@
+ 
+         ('record=', None,
+          "filename in which to record list of installed files"),
++
++        ('install-layout=', None,
++         "installation layout to choose (known values: deb, unix)"),
+         ]
+ 
+     boolean_options = ['compile', 'force', 'skip-build', 'user']
+@@ -168,6 +185,7 @@
+         self.exec_prefix = None
+         self.home = None
+         self.user = 0
++        self.prefix_option = None
+ 
+         # These select only the installation base; it's up to the user to
+         # specify the installation scheme (currently, that means supplying
+@@ -188,6 +206,9 @@
+         self.install_data = None
+         self.install_userbase = USER_BASE
+         self.install_usersite = USER_SITE
++
++        # enable custom installation, known values: deb
++        self.install_layout = None
+ 
+         self.compile = None
+         self.optimize = None
+@@ -421,6 +442,7 @@
+             self.install_base = self.install_platbase = self.home
+             self.select_scheme("unix_home")
+         else:
++            self.prefix_option = self.prefix
+             if self.prefix is None:
+                 if self.exec_prefix is not None:
+                     raise DistutilsOptionError, \
+@@ -435,7 +457,23 @@
+ 
+             self.install_base = self.prefix
+             self.install_platbase = self.exec_prefix
+-            self.select_scheme("unix_prefix")
++            if self.install_layout:
++                if self.install_layout.lower() in ['deb']:
++                    self.select_scheme("deb_system")
++                elif self.install_layout.lower() in ['posix', 'unix']:
++                    self.select_scheme("unix_prefix")
++                else:
++                    raise DistutilsOptionError(
++                        "unknown value for --install-layout")
++            elif (self.prefix_option and os.path.normpath(self.prefix) != '/usr/local') \
++                    or 'PYTHONUSERBASE' in os.environ \
++                    or 'real_prefix' in sys.__dict__:
++                self.select_scheme("unix_prefix")
++            else:
++                if os.path.normpath(self.prefix) == '/usr/local':
++                    self.select_scheme("deb_system")
++                else:
++                    self.select_scheme("unix_local")
+ 
+     # finalize_unix ()
+ 
+--- a/Lib/distutils/command/install_egg_info.py
++++ b/Lib/distutils/command/install_egg_info.py
+@@ -5,6 +5,7 @@
+ 
+ 
+ from distutils.cmd import Command
++from distutils.errors import DistutilsOptionError
+ from distutils import log, dir_util
+ import os, sys, re
+ 
+@@ -14,18 +15,37 @@
+     description = "Install package's PKG-INFO metadata as an .egg-info file"
+     user_options = [
+         ('install-dir=', 'd', "directory to install to"),
++        ('install-layout', None, "custom installation layout"),
+     ]
+ 
+     def initialize_options(self):
+         self.install_dir = None
++        self.install_layout = None
++        self.prefix_option = None
+ 
+     def finalize_options(self):
+         self.set_undefined_options('install_lib',('install_dir','install_dir'))
+-        basename = "%s-%s-py%s.egg-info" % (
+-            to_filename(safe_name(self.distribution.get_name())),
+-            to_filename(safe_version(self.distribution.get_version())),
+-            sys.version[:3]
+-        )
++        self.set_undefined_options('install',('install_layout','install_layout'))
++        self.set_undefined_options('install',('prefix_option','prefix_option'))
++        if self.install_layout:
++            basename = "%s-%s.egg-info" % (
++                to_filename(safe_name(self.distribution.get_name())),
++                to_filename(safe_version(self.distribution.get_version()))
++                )
++            if not self.install_layout.lower() in ['deb']:
++                raise DistutilsOptionError(
++                    "unknown value for --install-layout")
++        elif self.prefix_option or 'real_prefix' in sys.__dict__:
++            basename = "%s-%s-py%s.egg-info" % (
++                to_filename(safe_name(self.distribution.get_name())),
++                to_filename(safe_version(self.distribution.get_version())),
++                sys.version[:3]
++                )
++        else:
++            basename = "%s-%s.egg-info" % (
++                to_filename(safe_name(self.distribution.get_name())),
++                to_filename(safe_version(self.distribution.get_version()))
++                )
+         self.target = os.path.join(self.install_dir, basename)
+         self.outputs = [self.target]
+ 
+--- a/Lib/distutils/sysconfig.py
++++ b/Lib/distutils/sysconfig.py
+@@ -119,6 +119,7 @@
+     If 'prefix' is supplied, use it instead of sys.prefix or
+     sys.exec_prefix -- i.e., ignore 'plat_specific'.
+     """
++    is_default_prefix = not prefix or os.path.normpath(prefix) in ('/usr', '/usr/local')
+     if prefix is None:
+         prefix = plat_specific and EXEC_PREFIX or PREFIX
+ 
+@@ -127,6 +128,8 @@
+                                  "lib", "tauthon" + get_python_version())
+         if standard_lib:
+             return libpython
++        elif is_default_prefix and 'PYTHONUSERBASE' not in os.environ and 'real_prefix' not in sys.__dict__:
++            return os.path.join(libpython, "dist-packages")
+         else:
+             return os.path.join(libpython, "site-packages")
+ 
+--- a/Lib/test/test_import.py
++++ b/Lib/test/test_import.py
+@@ -301,7 +301,7 @@
+         with check_warnings(('', ImportWarning)):
+             # Just a random non-package directory we always expect to be
+             # somewhere in sys.path...
+-            self.assertRaises(ImportError, __import__, "site-packages")
++            self.assertRaises(ImportError, __import__, "dist-packages")
+ 
+     def test_import_by_filename(self):
+         path = os.path.abspath(TESTFN)
+--- a/Lib/test/test_site.py
++++ b/Lib/test/test_site.py
+@@ -255,10 +255,13 @@
+         elif os.sep == '/':
+             # OS X, Linux, FreeBSD, etc
+             self.assertEqual(len(dirs), 2)
+-            wanted = os.path.join('xoxo', 'lib', 'tauthon' + sys.version[:3],
+-                                  'site-packages')
++            wanted = os.path.join('xoxo', 'local', 'lib',
++                                  'tauthon' + sys.version[:3],
++                                  'dist-packages')
+             self.assertEqual(dirs[0], wanted)
+-            wanted = os.path.join('xoxo', 'lib', 'site-python')
++            wanted = os.path.join('xoxo', 'lib',
++                                  'tauthon' + sys.version[:3],
++                                  'dist-packages')
+             self.assertEqual(dirs[1], wanted)
+         else:
+             # other platforms
+--- a/Lib/test/test_sysconfig.py
++++ b/Lib/test/test_sysconfig.py
+@@ -239,8 +239,8 @@
+         self.assertTrue(os.path.isfile(config_h), config_h)
+ 
+     def test_get_scheme_names(self):
+-        wanted = ('nt', 'nt_user', 'os2', 'os2_home', 'osx_framework_user',
+-                  'posix_home', 'posix_prefix', 'posix_user')
++        wanted = ('deb_system', 'nt', 'nt_user', 'os2', 'os2_home', 'osx_framework_user',
++                  'posix_home', 'posix_local', 'posix_prefix', 'posix_user')
+         self.assertEqual(get_scheme_names(), wanted)
+ 
+     @unittest.skipIf(sys.platform.startswith('win'),
+--- a/Lib/distutils/tests/test_install.py
++++ b/Lib/distutils/tests/test_install.py
+@@ -194,7 +194,7 @@
+ 
+         found = [os.path.basename(line) for line in content.splitlines()]
+         expected = ['hello.py', 'hello.pyc', 'sayhi',
+-                    'UNKNOWN-0.0.0-py%s.%s.egg-info' % sys.version_info[:2]]
++                    'UNKNOWN-0.0.0.egg-info']
+         self.assertEqual(found, expected)
+ 
+     def test_record_extensions(self):
+@@ -224,7 +224,7 @@
+ 
+         found = [os.path.basename(line) for line in content.splitlines()]
+         expected = [_make_ext_name('xx'),
+-                    'UNKNOWN-0.0.0-py%s.%s.egg-info' % sys.version_info[:2]]
++                    'UNKNOWN-0.0.0.egg-info']
+         self.assertEqual(found, expected)
+ 
+     def test_debug_mode(self):
+--- a/Lib/distutils/tests/test_bdist_dumb.py
++++ b/Lib/distutils/tests/test_bdist_dumb.py
+@@ -87,7 +87,7 @@
+             fp.close()
+ 
+         contents = sorted(filter(None, map(os.path.basename, contents)))
+-        wanted = ['foo-0.1-py%s.%s.egg-info' % sys.version_info[:2], 'foo.py']
++        wanted = ['foo-0.1.egg-info', 'foo.py']
+         if not sys.dont_write_bytecode:
+             wanted.append('foo.pyc')
+         self.assertEqual(contents, sorted(wanted))
+--- a/Lib/pydoc.py
++++ b/Lib/pydoc.py
+@@ -392,6 +392,7 @@
+                                  'marshal', 'posix', 'signal', 'sys',
+                                  'thread', 'zipimport') or
+              (file.startswith(basedir) and
++              not file.startswith(os.path.join(basedir, 'dist-packages')) and
+               not file.startswith(os.path.join(basedir, 'site-packages')))) and
+             object.__name__ not in ('xml.etree', 'test.pydoc_mod')):
+             if docloc.startswith(("http://", "https://")):

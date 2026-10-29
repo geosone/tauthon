@@ -1,0 +1,3 @@
+debian-site-locations.patch
+debian-distutils-install-layout.patch
+debian-multiarch-extensions.patch

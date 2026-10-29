@@ -1,0 +1,40 @@
+Description: Recognize Debian multiarch extension suffixes in Tauthon
+Origin: Debian python2.7 2.7.18-8+deb11u1, multiarch.diff (selected hunks)
+Forwarded: not-needed
+
+--- a/Python/dynload_shlib.c
++++ b/Python/dynload_shlib.c
+@@ -46,6 +46,9 @@
+     {"module.exe", "rb", C_EXTENSION},
+     {"MODULE.EXE", "rb", C_EXTENSION},
+ #else
++#ifdef MULTIARCH
++    {"." MULTIARCH ".so", "rb", C_EXTENSION},
++#endif
+     {".so", "rb", C_EXTENSION},
+     {"module.so", "rb", C_EXTENSION},
+ #endif
+--- a/Python/sysmodule.c
++++ b/Python/sysmodule.c
+@@ -1572,6 +1572,9 @@
+                         PyBool_FromLong(Py_Py3kWarningFlag));
+     SET_SYS_FROM_STRING("float_info",
+                         PyFloat_GetInfo());
++#ifdef MULTIARCH
++    SET_SYS_FROM_STRING("_multiarch", PyString_FromString(MULTIARCH));
++#endif
+     SET_SYS_FROM_STRING("long_info",
+                         PyLong_GetInfo());
+ #ifdef Py_USING_UNICODE
+--- a/Makefile.pre.in
++++ b/Makefile.pre.in
+@@ -1377,6 +1377,9 @@
+ 
+ .PRECIOUS: config.status $(BUILDTAUTHON) Makefile Makefile.pre
+ 
++# Debian multiarch suffixes for rebuilt extension modules.
++Python/sysmodule.o Python/dynload_shlib.o: CPPFLAGS += $(if $(MULTIARCH),-DMULTIARCH='"$(MULTIARCH)"')
++
+ # Some make's put the object file in the current directory
+ .c.o:
+ 	$(CC) -c $(PY_CFLAGS) -o $@ $<

@@ -1,21 +1,24 @@
 #!/usr/bin/make -f
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 export DH_VERBOSE = 1
+include /usr/share/dpkg/architecture.mk
 
 %:
 	dh $@ --buildsystem=autoconf
 
 override_dh_auto_configure:
-	autoreconf -fi
 	dh_auto_configure -- --prefix=/usr --libdir=/usr/lib --enable-shared --with-system-expat --with-system-ffi --with-ensurepip=no
 
 override_dh_auto_test:
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	LD_LIBRARY_PATH=$(CURDIR) ./tauthon -E debian/tests/runtime.py
+	LD_LIBRARY_PATH=$(CURDIR) ./tauthon -E debian/tests/layout.py
 endif
 
 override_dh_auto_install:
 	$(MAKE) altinstall DESTDIR=$(CURDIR)/debian/tmp
+	mkdir -p debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)
+	mv debian/tmp/usr/lib/libtauthon2.8* debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/
 	find debian/tmp -name '*.py[co]' -delete
 	rm -f debian/tmp/usr/bin/idle* debian/tmp/usr/bin/2to3* debian/tmp/usr/bin/pydoc* debian/tmp/usr/bin/smtpd.py
 	mv debian/tmp/usr/bin/python2.8-config debian/tmp/usr/bin/tauthon2.8-config

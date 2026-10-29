@@ -25,6 +25,15 @@ try {
     Invoke-Checked tar @('-xf', $archive, '-C', $source)
     Invoke-Checked docker @('build', '-f', (Join-Path $source 'packaging/trixie.Dockerfile'), '-t', 'tauthon-build:trixie', (Join-Path $source 'packaging'))
     Invoke-Checked docker @('run', '--rm', '--network=none', '--mount', "type=bind,src=$source,dst=/source,readonly", '--mount', "type=bind,src=$OutputDirectory,dst=/out", '-e', "DEB_BUILD_OPTIONS=parallel=$Jobs", 'tauthon-build:trixie', 'sh', '-ec', 'mkdir /work; cp -a /source /work/tauthon; cd /work/tauthon; dpkg-buildpackage -b -us -uc; cp /work/*.deb /work/*.buildinfo /work/*.changes /out/')
+    $commit = & git -C $repository rev-parse HEAD
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot determine source commit.' }
+    $image = & docker image inspect tauthon-build:trixie --format '{{.Id}}'
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot determine build image.' }
+    $archiveHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+    [IO.File]::WriteAllLines((Join-Path $OutputDirectory 'build.ini'), @(
+        '[Build]', 'Status=Built', "SourceCommit=$commit", "SourceArchiveSHA256=$archiveHash",
+        "ContainerImage=$image", "Utc=$([DateTime]::UtcNow.ToString('o'))"
+    ))
     Write-Output "Packages: $OutputDirectory"
 }
 finally {
