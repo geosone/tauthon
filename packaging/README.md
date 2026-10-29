@@ -64,4 +64,11 @@ against Bookworm, not dependency overrides or fake library symlinks.
 For published test packages, see `test-results-trixie.md` and the release notes.
 `Export-Release.ps1` bundles the six Debian artifacts, build metadata, checksums,
 license and qualification notes. A release download is not an APT repository;
-a future GitHub Pages repository needs generated and signed APT metadata.
+the BBS-hosted Aptly publisher supplies signed APT metadata separately.
+
+Experimental Trixie APT repository:
+https://bbs.disconnected-by-peer.at/debian/tauthon-testing/
+
+Public key: append `tauthon-archive-keyring.gpg` to that URL. Fingerprint:
+CFBA869A2DD9E6B5F2B0E3F6249D77BA896B5FB7.
+The repository is opt-in for testing until Mystic A49 embedding is qualified.

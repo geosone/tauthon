@@ -19,6 +19,8 @@ Passed on the separate Debian 13 VM, inside disposable containers:
 - A generic C program embedding the native Tauthon library.
 - Existing MRC multiplexer regression with Tauthon: framing, STATS, ping,
   queue locking and EOF reconnection against a local mock host.
+- Signed Aptly repository consumed through the public HTTPS Apache proxy;
+  APT metadata verification and package installation passed.
 - Fresh Trixie APT installation, no held packages, full-upgrade simulation
   with zero removals/not-upgraded packages, and Python 3 reinstallation.
 
@@ -32,6 +34,10 @@ Limits before production use:
   bytecode-maintenance implementation remains open. User module directories
   must not be deleted indiscriminately.
 - No Bookworm, ARM, Windows or future Debian release qualification yet.
-- These are unsigned local Debian artifacts, not a configured APT repository.
+- Debian files are not individually signed. They are also published through
+  an Aptly repository with signed Release metadata; the HTTPS entry point is
+  https://bbs.disconnected-by-peer.at/debian/tauthon-testing/.
 
-No production BBS packages or data were changed by these tests.
+No Mystic, Python or cryptlib installation on the production BBS was changed
+by these tests. A separate Aptly publisher and Apache proxy were added there
+after qualification, under explicit user instruction.
