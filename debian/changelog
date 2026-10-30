@@ -1,3 +1,10 @@
+tauthon (2.8.5+git20260331.8c285035-1~bookworm1) bookworm; urgency=medium
+
+  * Build the reviewed Tauthon packaging natively for Debian 12 amd64.
+  * Keep Debian 12 dependency resolution separate from Debian 13 builds.
+
+ -- Disconnected by Peer AT <system@bbs.disconnected-by-peer.at>  Sat, 31 Oct 2026 12:00:00 +0100
+
 tauthon (2.8.5+git20260331.8c285035-1~trixie1) trixie; urgency=medium
 
   * Initial experimental Trixie packaging of pinned upstream sources.
