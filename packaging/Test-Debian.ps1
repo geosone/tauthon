@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$PackageDirectory = (Join-Path $PSScriptRoot '../../tauthon-packages'),
-    [string]$RelayRepository = (Join-Path $PSScriptRoot '../../mysticd-installer-work')
+    [string]$RelayRepository = (Join-Path $PSScriptRoot '../../mysticd-installer-work'),
+    [ValidateSet('bookworm','trixie')][string]$Suite='bookworm'
 )
 $ErrorActionPreference = 'Stop'
 if (-not $IsLinux) { throw 'This test currently requires a Linux Docker host.' }
@@ -9,7 +10,7 @@ $PackageDirectory = (Resolve-Path $PackageDirectory).Path
 $RelayRepository = (Resolve-Path $RelayRepository).Path
 if (-not (Get-ChildItem -LiteralPath $PackageDirectory -Filter '*.deb')) { throw 'No Debian packages found.' }
 $repository = Split-Path $PSScriptRoot -Parent
-& docker build -f (Join-Path $PSScriptRoot 'trixie-test.Dockerfile') -t tauthon-test:trixie $PSScriptRoot
+& docker build -f (Join-Path $PSScriptRoot "$Suite-test.Dockerfile") -t "tauthon-test:$Suite" $PSScriptRoot
 if ($LASTEXITCODE -ne 0) { throw 'Cannot build package acceptance image.' }
 $lab = Join-Path ([IO.Path]::GetTempPath()) ('tauthon-mrc-' + [guid]::NewGuid().ToString('N'))
 & (Join-Path $RelayRepository 'tools/Stage-MrcCompatibilityLab.ps1') -Bundled -OutputDirectory $lab
@@ -59,7 +60,7 @@ printf '%s\n' 'PASS package installation/removal, optional aliases, native embed
 
 '@
 try {
-    & docker run --rm --network=none --mount "type=bind,src=$PackageDirectory,dst=/packages,readonly" --mount "type=bind,src=$repository,dst=/source,readonly" --mount "type=bind,src=$RelayRepository,dst=/relay,readonly" --mount "type=bind,src=$lab,dst=/lab" tauthon-test:trixie sh -ec $test
+    & docker run --rm --network=none --mount "type=bind,src=$PackageDirectory,dst=/packages,readonly" --mount "type=bind,src=$repository,dst=/source,readonly" --mount "type=bind,src=$RelayRepository,dst=/relay,readonly" --mount "type=bind,src=$lab,dst=/lab" "tauthon-test:$Suite" sh -ec $test
     if ($LASTEXITCODE -ne 0) { throw "Container acceptance failed with exit code $LASTEXITCODE" }
 }
 finally {
