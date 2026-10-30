@@ -1,13 +1,15 @@
 #Requires -Version 7.0
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$OutputDirectory,
-      [Parameter(Mandatory)][string]$EmbeddingProbe)
+      [Parameter(Mandatory)][string]$EmbeddingProbe,
+      [ValidateSet('x64','Win32')][string]$Architecture='x64')
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $output=[IO.Path]::GetFullPath($OutputDirectory)
 if(Test-Path $output){throw 'Use a new output directory.'}
 New-Item -ItemType Directory -Path $output | Out-Null
-$build=Join-Path $root 'PCbuild/amd64'
+$directory=if($Architecture -eq 'x64'){'amd64'}else{'win32'}
+$build=Join-Path $root "PCbuild/$directory"
 foreach($name in @('tauthon.exe','tauthonw.exe','tauthon28.dll')){
     Copy-Item (Join-Path $build $name) $output
 }
@@ -26,13 +28,14 @@ Get-ChildItem $externals -Recurse -File | Where-Object {$_.Name -match 'LICENSE|
 Copy-Item (Join-Path $output 'tauthon.exe') (Join-Path $output 'python2.exe')
 Copy-Item (Join-Path $output 'tauthon.exe') (Join-Path $output 'python2.7.exe')
 @'
-Experimental Windows x64 Tauthon test bundle.
-MSVC build; real Mystic integration and Windows 7 support are not qualified.
+Experimental Windows Tauthon test bundle (see build.ini for architecture).
+MSVC build; real Mystic integration and Windows 7 compatibility are not qualified.
 Upstream PCbuild currently selects old third-party dependencies, including
 OpenSSL 1.1.1n. This is not a supported security release or public installer.
 The native DLL is tauthon28.dll, not python27.dll. Existing binary extensions
 require explicit compatibility tests or rebuilding. No registry or PATH change.
 '@ | Set-Content (Join-Path $output 'README.txt')
+@('[Build]',"Architecture=$Architecture",'TargetOS=Windows10','LegacyWindows7=NotQualified') | Set-Content (Join-Path $output 'build.ini')
 if($IsWindows){
     Push-Location $env:TEMP
     try {
