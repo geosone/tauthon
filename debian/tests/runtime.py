@@ -10,3 +10,16 @@ ctx = ssl.create_default_context()
 assert ctx.verify_mode == ssl.CERT_REQUIRED
 assert ctx.check_hostname
 print('PASS Tauthon runtime imports, codecs, SQLite and verified TLS defaults')
+import os, tempfile
+if hasattr(os, 'futimesat'):
+    handle, path = tempfile.mkstemp()
+    directory = os.open(os.path.dirname(path), os.O_RDONLY)
+    try:
+        stamp = 4102444800.25
+        os.futimesat(directory, os.path.basename(path), (stamp, stamp))
+        assert abs(os.stat(path).st_mtime - stamp) < 0.001
+    finally:
+        os.close(directory)
+        os.close(handle)
+        os.unlink(path)
+    print('PASS futimesat fractional post-2038 timestamp roundtrip')

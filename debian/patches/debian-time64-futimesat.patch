@@ -1,0 +1,26 @@
+Description: Convert futimesat microseconds without assuming suseconds_t is long
+ On 32-bit Debian time64 builds timeval.tv_usec is 64-bit while extract_time
+ accepts long*. Use a bounded microsecond temporary and convert by value.
+Author: Disconnected by Peer AT
+Forwarded: no
+--- a/Modules/posixmodule.c
++++ b/Modules/posixmodule.c
+@@ -9220,13 +9220,16 @@
+     }
+     else {
++        long atime_usec, mtime_usec;
+         if (extract_time(PyTuple_GET_ITEM(arg, 0),
+-				&(buf[0].tv_sec), &(buf[0].tv_usec)) == -1) {
++				&(buf[0].tv_sec), &atime_usec) == -1) {
+             Py_DECREF(opath);
+             return NULL;
+         }
++        buf[0].tv_usec = atime_usec;
+         if (extract_time(PyTuple_GET_ITEM(arg, 1),
+-				&(buf[1].tv_sec), &(buf[1].tv_usec)) == -1) {
++				&(buf[1].tv_sec), &mtime_usec) == -1) {
+             Py_DECREF(opath);
+             return NULL;
+         }
++        buf[1].tv_usec = mtime_usec;
+         Py_BEGIN_ALLOW_THREADS
