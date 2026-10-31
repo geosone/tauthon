@@ -5,7 +5,8 @@ Author: Disconnected by Peer AT
 Forwarded: no
 --- a/Modules/posixmodule.c
 +++ b/Modules/posixmodule.c
-@@ -9220,13 +9220,16 @@
+@@ -9219,16 +9219,19 @@
+         return NULL;
      }
      else {
 +        long atime_usec, mtime_usec;
@@ -24,3 +25,5 @@ Forwarded: no
          }
 +        buf[1].tv_usec = mtime_usec;
          Py_BEGIN_ALLOW_THREADS
+         res = futimesat(dirfd, path, buf);
+         Py_END_ALLOW_THREADS
