@@ -1,6 +1,6 @@
-# Windows native builds and MSI test installers
+# Windows native builds and MSI installers
 
-The `windows/build-msvc` branch builds x86 and x64 with the existing PCbuild
+The Windows workflow on `master` builds x86 and x64 with the existing PCbuild
 projects and MSVC v143. GitHub Actions run 41041170384 built both native
 bundles successfully. The DLL retains its name **tauthon28.dll**; renaming it
 to python27.dll does not establish ABI compatibility with Mystic.
@@ -15,7 +15,7 @@ msitools. Obtain the pinned zlib license with `Get-MsiNotices.ps1`, then pass
 Finalize each candidate on Windows with Windows PowerShell 5.1 or later:
 
 ```powershell
-./Finalize-WindowsMsi.ps1 -MsiPath ./tauthon-2.8.5-windows-x64-test1.msi -TableDirectory .
+./Finalize-WindowsMsi.ps1 -MsiPath ./tauthon-2.8.5-1-windows-x64.msi -TableDirectory .
 ```
 
 The table directory must contain the generated `RemoveFile.idt`. Finalization
@@ -38,13 +38,16 @@ on a 64-bit host). It includes local `tauthon.exe`, `python2.exe` and
 are untouched. A custom directory can be supplied to Windows Installer:
 
 ```powershell
-msiexec.exe /i tauthon-2.8.5-windows-x64-test1.msi INSTALLFOLDER="D:\BBS\Tauthon28"
+msiexec.exe /i tauthon-2.8.5-1-windows-x64.msi INSTALLFOLDER="D:\BBS\Tauthon28"
 ```
 
-Remove an older test MSI before installing another build. Automatic upgrades
-and downgrades have not been qualified. Uninstall through Apps & Features or
-`msiexec /x <package.msi>`. MSI version 2.8.501 denotes source 2.8.5, test 1.
-The package is unsigned and deliberately labelled as a test version.
+`New-WindowsMsi.ps1 -Release N` builds Windows release N of source 2.8.5 as
+`tauthon-2.8.5-N-windows-<arch>.msi` with MSI version 2.8.(510+N); test build 1
+was 2.8.501. All share one upgrade code per architecture, so a release replaces
+an installed test or older release MSI (major upgrade) and refuses downgrades.
+PE files carry their resource version as MSI file version, because wixl leaves
+it empty and costing would otherwise keep the old file. Uninstall through Apps
+& Features or `msiexec /x <package.msi>`. The package is unsigned.
 
 ## Verification and remaining work
 

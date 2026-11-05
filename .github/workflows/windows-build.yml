@@ -1,7 +1,7 @@
 name: Windows compatibility build
 on:
   push:
-    branches: [windows/build-msvc]
+    branches: [master]
     paths: ['PCbuild/**', 'packaging/windows/**', '.github/workflows/windows-build.yml']
   workflow_dispatch:
 permissions:

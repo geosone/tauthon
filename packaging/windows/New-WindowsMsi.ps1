@@ -3,8 +3,15 @@
 param([Parameter(Mandatory)][string]$BundleDirectory,
       [Parameter(Mandatory)][ValidateSet('x86','x64')][string]$Architecture,
       [Parameter(Mandatory)][string]$ZlibNotice,
-      [Parameter(Mandatory)][string]$OutputDirectory)
+      [Parameter(Mandatory)][string]$OutputDirectory,
+      [ValidateRange(1,9)][int]$Release=1)
 $ErrorActionPreference='Stop'
+# MSI version 2.8.5xx: 501 was test build 1; 511..519 are Windows releases 1..9
+# of source 2.8.5. The upgrade code is shared, so each release replaces any
+# earlier test or release MSI of the same architecture.
+$msiVersion='2.8.'+(510+$Release)
+$packageName="tauthon-2.8.5-$Release-windows-$Architecture.msi"
+
 $source=(Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 if((Get-FileHash $ZlibNotice -Algorithm SHA256).Hash.ToLowerInvariant() -ne '045cf777c6c9109b28ddcf3a413c5ca15e39fc513c13ef87bd9a3132a59d1b51'){
     throw 'Use Get-MsiNotices.ps1 to obtain the matching zlib license notice.'
@@ -57,28 +64,28 @@ The pinned zlib notice is from source-deps commit 9c4e58f43af83df1675c98ae7320cd
 Microsoft's VC runtime is a separately installed prerequisite and not included.
 '@ | Set-Content (Join-Path $notices 'SOURCES.txt')
 @'
-Tauthon 2.8.5 — Windows test MSI, build 1 (MSI version 2.8.501).
+Tauthon 2.8.5 — Windows MSI, release RELEASE (MSI version MSIVERSION).
 Requires the matching Microsoft Visual C++ 2015–2022 runtime, v14.44 or later.
 Official runtime downloads: https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist
 
 Install normally using Windows Installer, or:
-msiexec /i tauthon-2.8.5-windows-ARCH-test1.msi INSTALLFOLDER="C:\Tauthon28" /qn /norestart
+msiexec /i PACKAGENAME INSTALLFOLDER="C:\Tauthon28" /qn /norestart
 Default: Program Files\Tauthon28 (Program Files (x86) for x86 on x64 Windows).
 Local executables: tauthon.exe, python2.exe, python2.7.exe.
 Native library: tauthon28.dll. Do not rename it to python27.dll.
 No global Python registration, PATH changes or .py file associations are made.
 Uninstall through Apps & Features or msiexec /x with this MSI.
-This first test package requires uninstalling an older test MSI before replacement;
-automatic major upgrades/downgrades are not yet qualified.
+Installing this MSI replaces an earlier Tauthon test or release MSI of the
+same architecture (major upgrade); downgrades are refused.
 
 Windows 10 x86/x64 is the test target. Windows 7 and Mystic A49 embedding are
 not qualified. Tcl/Tk, Berkeley DB and the full stdlib test suite are omitted.
 Upstream Windows dependencies include old OpenSSL 1.1.1n. This is a functional
-test build, not a current security-supported runtime release.
+compatibility runtime, not a current security-supported Python release.
 Licenses are in LICENSE and third-party-notices. Source, build scripts and
-dependency provenance: https://github.com/geosone/tauthon/tree/windows/build-msvc
+dependency provenance: https://github.com/geosone/tauthon/tree/master
 A matching source archive is provided beside the public MSI downloads.
-'@.Replace('windows-ARCH-',"windows-$Architecture-") | Set-Content (Join-Path $payload 'README-MSI.txt')
+'@.Replace('PACKAGENAME',$packageName).Replace('MSIVERSION',$msiVersion).Replace('RELEASE',[string]$Release) | Set-Content (Join-Path $payload 'README-MSI.txt')
 $xml=[Xml.XmlDocument]::new();$ns='http://schemas.microsoft.com/wix/2006/wi'
 function Element($Parent,[string]$Name,[hashtable]$Attributes){
     $node=$xml.CreateElement($Name,$ns)
@@ -91,13 +98,31 @@ function Hash([string]$Value){
     try {return ([BitConverter]::ToString($algorithm.ComputeHash([Text.Encoding]::UTF8.GetBytes($Value)))).Replace('-','').ToLowerInvariant()}
     finally {$algorithm.Dispose()}
 }
+# Read the file version from a PE version resource. VS_FIXEDFILEINFO
+# (Microsoft winver.h) starts with the signature 0xFEEF04BD; zero-based offset 8
+# holds dwFileVersionMS (major << 16 | minor) and offset 12 dwFileVersionLS
+# (build << 16 | revision), both little-endian UInt32. wixl leaves File.Version
+# empty, and Windows Installer costing (before the old product is removed)
+# would then keep an installed versioned file instead of the new one.
+function PeVersion([string]$Path){
+    $bytes=[IO.File]::ReadAllBytes($Path)
+    for($i=0;$i -le $bytes.Length-16;$i++){
+        if($bytes[$i] -eq 0xBD -and $bytes[$i+1] -eq 0x04 -and $bytes[$i+2] -eq 0xEF -and $bytes[$i+3] -eq 0xFE){
+            $ms=[BitConverter]::ToUInt32($bytes,$i+8)
+            $ls=[BitConverter]::ToUInt32($bytes,$i+12)
+            return '{0}.{1}.{2}.{3}' -f ($ms -shr 16),($ms -band 0xffff),($ls -shr 16),($ls -band 0xffff)
+        }
+    }
+    return $null
+}
 function GuidFor([string]$Value){
     $h=Hash $Value
     return ([guid]($h.Substring(0,8)+'-'+$h.Substring(8,4)+'-5'+$h.Substring(13,3)+'-8'+$h.Substring(17,3)+'-'+$h.Substring(20,12))).ToString().ToUpperInvariant()
 }
 $wix=Element $xml 'Wix' @{}
-$product=Element $wix 'Product' @{Id=(GuidFor "tauthon-test1/$Architecture");Name="Tauthon 2.8.5 test build 1 ($Architecture)";Language='1033';Version='2.8.501';Manufacturer='Tauthon contributors';UpgradeCode=(GuidFor "tauthon-upgrade/$Architecture")}
+$product=Element $wix 'Product' @{Id=(GuidFor "tauthon-release$Release/$Architecture");Name="Tauthon 2.8.5 ($Architecture)";Language='1033';Version=$msiVersion;Manufacturer='Tauthon contributors';UpgradeCode=(GuidFor "tauthon-upgrade/$Architecture")}
 $null=Element $product 'Package' @{InstallerVersion='500';Compressed='yes';InstallScope='perMachine'}
+$null=Element $product 'MajorUpgrade' @{DowngradeErrorMessage='A newer Tauthon MSI is already installed.'}
 $null=Element $product 'Media' @{Id='1';Cabinet='tauthon.cab';EmbedCab='yes'}
 $null=Element $product 'Property' @{Id='ARPURLINFOABOUT';Value='https://github.com/geosone/tauthon'}
 $crt=Element $product 'Property' @{Id='VC_CRT_VERSION'}
@@ -123,7 +148,12 @@ foreach($file in Get-ChildItem $payload -Recurse -File | Sort-Object FullName){
     $attributes=@{Id=('C'+$id);Guid=(GuidFor "$Architecture/$relative")}
     if($Architecture -eq 'x64'){$attributes.Win64='yes'}
     $component=Element $directories[$key] 'Component' $attributes
-    $null=Element $component 'File' @{Id=('F'+$id);Source=$file.FullName;KeyPath='yes'}
+    $fileAttributes=@{Id=('F'+$id);Source=$file.FullName;KeyPath='yes'}
+    if($file.Extension -in '.exe','.dll','.pyd'){
+        $version=PeVersion $file.FullName
+        if($version){$fileAttributes.DefaultVersion=$version}
+    }
+    $null=Element $component 'File' $fileAttributes
     if($file.Extension -eq '.py'){
         foreach($extension in @('pyc','pyo')){
             $name='P'+$id.Substring(0,7)+'.'+$extension+'|'+$file.BaseName+'.'+$extension
@@ -133,7 +163,7 @@ foreach($file in Get-ChildItem $payload -Recurse -File | Sort-Object FullName){
     $null=Element $feature 'ComponentRef' @{Id=('C'+$id)}
 }
 $wxs=Join-Path $output 'tauthon.wxs';$xml.Save($wxs)
-$msi=Join-Path $output "tauthon-2.8.5-windows-$Architecture-test1.msi"
+$msi=Join-Path $output $packageName
 & wixl -a $Architecture -o $msi $wxs
 if($LASTEXITCODE -ne 0){throw 'WiX MSI compilation failed.'}
 # wixl 0.106 does not implement the WiX RemoveFile element. Import the native
