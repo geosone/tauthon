@@ -13,6 +13,7 @@ Vcs-Browser: https://github.com/geosone/tauthon/tree/debian/stable
 
 Package: tauthon
 Architecture: any
+Multi-Arch: allowed
 Depends: libtauthon2.8 (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
 Description: Python 2 compatible Tauthon interpreter and standard library
  Tauthon forks CPython 2.7 and adds selected Python 3 features.
@@ -35,7 +36,7 @@ Description: Headers and build configuration for Tauthon extensions
 
 Package: tauthon-python2-compat
 Architecture: all
-Depends: tauthon (>= ${source:Version}), ${misc:Depends}
+Depends: tauthon:any (>= ${source:Version}), ${misc:Depends}
 Conflicts: python2, python2-minimal, python2.7, python2.7-minimal
 Description: Optional Python 2 command paths backed by Tauthon
  Supplies /usr/bin/python2 and /usr/bin/python2.7 for tested legacy scripts.

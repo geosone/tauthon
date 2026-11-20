@@ -5,6 +5,9 @@ tauthon (2.8.5+git20260331.8c285035-2) UNRELEASED; urgency=medium
     contemporary timestamp on 32-bit time_t systems.
   * Mark libtauthon2.8 Multi-Arch: same, so the i386 library for a 32-bit
     Linux Mystic can be installed beside the amd64 one.
+  * Mark tauthon Multi-Arch: allowed and let tauthon-python2-compat depend
+    on tauthon:any, so the compatibility commands also accept the i386
+    interpreter.
 
  -- Disconnected by Peer AT <geos_one@disconnected-by-peer.at>  Fri, 20 Nov 2026 06:30:00 +0000
 
